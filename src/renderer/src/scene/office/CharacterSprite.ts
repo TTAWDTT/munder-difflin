@@ -25,8 +25,8 @@ const ANIM_FRAMES: Record<AnimState, number[]> = {
 const CHAR_SCALE = 1.08;
 // Keep a long hire name from turning into a banner across the office floor.
 const MAX_NAME_CHARS = 12;
-const TAG_HEIGHT = 12;
-const TAG_TEXT_Y = 8;
+const TAG_HEIGHT = 8;
+const TAG_TEXT_Y = 5;
 
 /** Ported from shahar061/the-office (office/characters/CharacterSprite.ts). */
 export class CharacterSprite {
@@ -68,7 +68,7 @@ export class CharacterSprite {
       text: '',
       style: {
         fontFamily: type.display,
-        fontSize: 8,
+        fontSize: 5,
         fill: colors.ink[900],
         align: 'center',
       },
@@ -95,14 +95,14 @@ export class CharacterSprite {
   }
 
   private layoutNametag(): void {
-    const width = Math.ceil(this.nametag.width / 2) * 2 + 8;
+    const width = Math.ceil(this.nametag.width / 2) * 2 + 4;
     // Outer/inner rects make the border a whole pixel instead of straddling
     // the pixel grid. Keep it flush with the avatar's feet baseline.
     this.nametagBackground.clear();
     this.nametagBackground
-      .rect(-(width / 2) - 1, 1, width + 2, TAG_HEIGHT + 2)
+      .rect(-(width / 2) - 1, 0, width + 2, TAG_HEIGHT + 1)
       .fill(colors.ink[900])
-      .rect(-width / 2, 2, width, TAG_HEIGHT)
+      .rect(-width / 2, 1, width, TAG_HEIGHT)
       .fill(colors.cream[100]);
   }
 
