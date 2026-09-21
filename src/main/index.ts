@@ -3451,6 +3451,28 @@ ipcMain.handle('roster:write', (_evt, snap: unknown) => roster.write(snap));
 
 // ─── IPC: hive (multi-agent coordination) ───────────────────────────────────
 ipcMain.handle('hive:registry', () => hive.registry());
+ipcMain.handle('hive:setAgentCwd', (_evt, id: unknown, cwd: unknown) => {
+  if (typeof id !== 'string' || typeof cwd !== 'string') {
+    return { ok: false, error: 'Invalid relocation request' };
+  }
+
+  // The old cwd is what may still be in the config quick-picks. Read it before
+  // the registry write relocates the agent.
+  const previousCwd = hive.registry().agents[id]?.cwd ?? null;
+  const result = hive.setAgentCwd(id, cwd);
+  if (!result.ok || !result.cwd || !previousCwd) return result;
+
+  // A project folder renamed on disk stays in registeredRepos otherwise, so the
+  // Add Agent quick-picks keep offering a path that no longer exists.
+  try {
+    const repos = readConfig().registeredRepos ?? [];
+    if (repos.includes(previousCwd)) {
+      writeConfig({ registeredRepos: repos.map((repo) => repo === previousCwd ? result.cwd! : repo) });
+    }
+  } catch { /* best-effort */ }
+  return result;
+});
+
 ipcMain.handle('hive:renameAgent', (_evt, id: unknown, name: unknown) => {
   if (typeof id !== 'string' || typeof name !== 'string') {
     return { ok: false, error: 'Invalid rename request' };
