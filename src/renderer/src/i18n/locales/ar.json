@@ -82,6 +82,8 @@
     "steerAria": "أرسل ملاحظة إلى هذا الوكيل"
   },
   "agentCard": {
+    "folderMissing": "المجلد مفقود",
+    "folderMissingTitle": "مجلد عمل هذا الوكيل مفقود. افتح الوكيل لتوجيهه إلى الموقع الجديد.",
     "boss": "المدير",
     "contextTitle": "السياق: {{used}} / {{limit}} رمز ({{pct}}%)",
     "contextGaugeTitle": "مقياس السياق — يمتلئ بمجرد أن يبلّغ الوكيل عن نشاط",
@@ -141,6 +143,12 @@
     "barFailed": "{{tool}} · {{ms}} م.ث · فاشل"
   },
   "agentDetail": {
+    "cwdNeedsAttention": "المجلد يحتاج إلى تدخّل",
+    "cwdNeedsAttentionBody": "{{cwd}} لم يعد موجودًا. وجّه الوكيل إلى مجلده الجديد.",
+    "changeFolder": "تغيير المجلد",
+    "changingFolder": "جارٍ الاختيار…",
+    "cwdFixed": "تم تحديث مجلد العمل",
+    "cwdChangeFailed": "تعذّر تحديث مجلد العمل",
     "open": "فتح",
     "opening": "...",
     "ok": "تم",

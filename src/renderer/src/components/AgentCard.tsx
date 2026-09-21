@@ -9,6 +9,7 @@ import { CostHud } from '@/realtime/CostHud';
 import { AccentColorName } from '@/design/tokens';
 import { OfficeCharacterName } from '@/scene/office/cast';
 import { AgentNameEditor } from './AgentNameEditor';
+import { Icon } from './Icon';
 
 export interface AgentCardProps {
   name: string;
@@ -20,6 +21,8 @@ export interface AgentCardProps {
    *  looks identical to an idle agent with nothing to do. */
   ptyId?: string;
   project: string;
+  /** Mirror of the hive registry's spawn-usable cwd check. */
+  cwdValid?: boolean | null;
   action?: string;
   /** Context gauge: 0..8 segments filled (session context ÷ context limit). */
   progress?: number;
@@ -55,7 +58,7 @@ const fmtK = (n: number): string => `${Math.round(n / 1000)}k`;
  * and a slim gauge pinned to the bottom edge. Nothing overlaps anything.
  */
 export function AgentCard({
-  name, character, accent, status, ptyId, project, action, progress = 0,
+  name, character, accent, status, ptyId, project, cwdValid, action, progress = 0,
   contextTokens, contextLimit, selected, isGod, onClick, onRename,
   doingCount = 0, onTaskNoteClick, draggable, note, onEditNote
 }: AgentCardProps) {
@@ -242,7 +245,27 @@ export function AgentCard({
 
             {/* God: voice on its own compact row. Workers: the private note row.
                 Both sit ABOVE the gauge, so it is never covered. */}
-            {isGod ? (
+            {/* A missing folder is a configuration repair, not a status. Replace
+                the note row so the card itself says why the agent cannot spawn. */}
+            {cwdValid === false ? (
+              <div
+                title={t('agentCard.folderMissingTitle')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  minWidth: 0, overflow: 'hidden'
+                }}
+              >
+                <span
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    minWidth: 0, fontSize: 10.5, lineHeight: '14px',
+                    color: 'var(--cth-coral)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                  }}
+                >
+                  <Icon name="folder" /> {t('agentCard.folderMissing')}
+                </span>
+              </div>
+            ) : isGod ? (
               // Talk grows an info mark when the OpenAI key is missing, so this
               // row can hold three things instead of two. `overflow: hidden` is
               // the guard: the toggle's label shrinks first (it has minWidth:0),

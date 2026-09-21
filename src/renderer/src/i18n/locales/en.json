@@ -82,6 +82,8 @@
     "steerAria": "Send this agent a note"
   },
   "agentCard": {
+    "folderMissing": "folder missing",
+    "folderMissingTitle": "This agent's working folder is missing. Open the agent to point it at the new location.",
     "boss": "BOSS",
     "contextTitle": "Context: {{used}} / {{limit}} tokens ({{pct}}%)",
     "contextGaugeTitle": "Context gauge — fills once the agent reports activity",
@@ -141,6 +143,12 @@
     "barFailed": "{{tool}} · {{ms}}ms · failed"
   },
   "agentDetail": {
+    "cwdNeedsAttention": "Folder needs attention",
+    "cwdNeedsAttentionBody": "{{cwd}} no longer exists. Point the agent at its new folder.",
+    "changeFolder": "change folder",
+    "changingFolder": "choosing…",
+    "cwdFixed": "Working folder updated",
+    "cwdChangeFailed": "Could not update the working folder",
     "open": "open",
     "opening": "...",
     "ok": "ok",

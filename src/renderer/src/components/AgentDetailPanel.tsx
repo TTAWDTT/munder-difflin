@@ -29,6 +29,8 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
   const [openTerminalState, setOpenTerminalState] = useState<'idle' | 'opening' | 'ok' | 'error'>('idle');
   const [openTerminalError, setOpenTerminalError] = useState<string | undefined>();
   const [editOpen, setEditOpen] = useState(false);
+  const [folderState, setFolderState] = useState<'idle' | 'changing' | 'ok' | 'error'>('idle');
+  const [folderError, setFolderError] = useState<string | undefined>();
 
   /**
    * THE HEADER STRIP HAS TO GIVE SOMETHING UP WHEN THE SIDEBAR IS DRAGGED IN.
@@ -78,6 +80,7 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
   const archiveAgent = useStore(s => s.archiveAgent);
   const updateAgent = useStore(s => s.updateAgent);
   const renameAgent = useStore(s => s.renameAgent);
+  const setAgentCwd = useStore(s => s.setAgentCwd);
   const setFullscreen = useStore(s => s.setFullscreen);
   const fullscreenAgentId = useStore(s => s.fullscreenAgentId);
   const sidebarTab = useStore(s => s.sidebarTab);
@@ -112,6 +115,31 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
       setOpenTerminalState('error');
       setOpenTerminalError(e instanceof Error ? e.message : String(e));
       setTimeout(() => setOpenTerminalState('idle'), 4000);
+    }
+  };
+
+  const changeFolder = async () => {
+    setFolderState('changing');
+    setFolderError(undefined);
+    try {
+      const picked = await window.cth.chooseFolder();
+      if (!picked.ok) {
+        setFolderState(agent.cwdValid === false ? 'error' : 'idle');
+        if (picked.error !== 'cancelled') setFolderError(picked.error);
+        return;
+      }
+      const result = await setAgentCwd(agent.id, picked.path);
+      if (!result.ok) {
+        setFolderState('error');
+        setFolderError(result.error ?? t('agentDetail.cwdChangeFailed'));
+        return;
+      }
+      setFolderState('ok');
+      setTimeout(() => setFolderState('idle'), 2500);
+    } catch (error) {
+      setFolderState('error');
+      setFolderError(error instanceof Error ? error.message : String(error));
+      setTimeout(() => setFolderState('idle'), 4000);
     }
   };
 
@@ -220,6 +248,47 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
           </PixelButton>
         )}
       </div>
+
+      {/* #445: a folder renamed on disk leaves the registry intact but the spawn
+          unusable. Keep the repair affordance at the same place as the failure
+          signal, instead of making users hunt through internal JSON files. */}
+      {(agent.cwdValid === false || folderState === 'ok' || folderState === 'error') && (
+        <div
+          role={folderState === 'error' ? 'alert' : 'status'}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '6px 8px', flexShrink: 0,
+            background: folderState === 'error' ? 'var(--cth-coral-light)' : 'var(--cth-lemon-light)',
+            borderBottom: '1px solid var(--cth-ink-100)'
+          }}
+        >
+          <Icon
+            name="folder"
+            style={{ color: folderState === 'error' ? 'var(--cth-coral)' : 'var(--cth-ink-900)' }}
+          />
+          <div style={{ flex: 1, minWidth: 0, fontSize: 12, lineHeight: 1.3 }}>
+            <div style={{ color: 'var(--cth-ink-900)', fontWeight: 600 }}>
+              {folderState === 'ok'
+                ? t('agentDetail.cwdFixed')
+                : t('agentDetail.cwdNeedsAttention')}
+            </div>
+            {folderState !== 'ok' && (
+              <div style={{
+                color: folderState === 'error' ? 'var(--cth-coral)' : 'var(--cth-ink-700)',
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+              }}>{folderError ?? t('agentDetail.cwdNeedsAttentionBody', { cwd: agent.cwd })}</div>
+            )}
+          </div>
+          <PixelButton
+            variant="secondary"
+            size="sm"
+            onClick={changeFolder}
+            disabled={folderState === 'changing'}
+          >
+            {folderState === 'changing' ? t('agentDetail.changingFolder') : t('agentDetail.changeFolder')}
+          </PixelButton>
+        </div>
+      )}
 
       {openTerminalError && (
         <div style={{

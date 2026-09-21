@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useStore, type Agent, type QueuedMessage, type StationKind, type ToolKind } from '@/store/store';
+import { workspaceNameFromCwd, useStore, type Agent, type QueuedMessage, type StationKind, type ToolKind } from '@/store/store';
 import {
   buildSpawnCommand,
   ASSISTANT_MODEL,
@@ -368,9 +368,31 @@ export function useHive(config: HarnessConfig | null): void {
         if (isDurableRole(next) && next !== roles[a.id]) {
           void window.cth.hivePatchAgentRole(a.id, next);
         }
+
+        // The registry owns the durable cwd and spawn-validity. Re-read it when the
+        // floor loads so a folder renamed while the app was closed surfaces as a
+        // repairable "needs attention" state instead of a silently dead agent.
+        const entry = reg.agents?.[a.id];
+        if (entry && (entry.cwd !== a.cwd || entry.cwdValid !== a.cwdValid)) {
+          useStore.getState().updateAgent(a.id, {
+            cwd: entry.cwd,
+            project: workspaceNameFromCwd(entry.cwd),
+            cwdValid: entry.cwdValid === false ? false : true
+          });
+        }
       }
     }).catch(() => { /* hive not ready yet */ });
   }, [config?.onboardingComplete]);
+
+  // 0a) A cwd change is main-side durable state. Broadcast when it happens (for
+  // example, another window made the repair) so every roster slice agrees.
+  useEffect(() => window.cth.onHiveAgentCwdChanged(({ id, cwd }) => {
+    useStore.getState().updateAgent(id, {
+      cwd,
+      project: workspaceNameFromCwd(cwd),
+      cwdValid: true
+    });
+  }), []);
 
   // 1) Bootstrap the god agent (source of truth = live PTYs, to dodge restarts).
   useEffect(() => {

@@ -51,6 +51,9 @@ export interface Agent {
   /** legacy field — populated only for the seeded mock agents */
   tmuxTarget: string;
   cwd: string;
+  /** Mirrors the hive registry: an absolute, existing directory is spawn-usable.
+   *  false is an operator-visible repair state, not a transient PTY status. */
+  cwdValid?: boolean | null;
   goal?: string;
   /** User-authored private note shown and edited from the roster-card hover. */
   note?: string;
@@ -226,6 +229,10 @@ interface State {
   /** Persist a display-name change to both the hive registry and renderer roster.
    *  The agent id and all id-derived paths remain unchanged. */
   renameAgent: (id: string, name: string) => Promise<{ ok: boolean; error?: string }>;
+  /** Point an existing agent at a replacement project folder, persist the repair
+   *  to the hive registry, and mirror it into the local roster slices. */
+  setAgentCwd: (id: string, cwd: string) => Promise<{ ok: boolean; error?: string }>;
+
   setAgentNote: (id: string, note: string) => void;
   pushFeed: (id: string, line: string) => void;
   addAgent: (agent: Agent) => void;
@@ -410,6 +417,11 @@ const rosterMirror: {
   queues: Record<string, QueuedMessage[]>;
   selectedId: string | null;
 } = { agents: [], archived: [], restorable: [], queues: {}, selectedId: null };
+
+export function workspaceNameFromCwd(cwd: string): string {
+  const segments = cwd.split(/[\\/]+/).filter(Boolean);
+  return segments.pop() ?? cwd;
+}
 
 let rosterFlush: ReturnType<typeof setTimeout> | null = null;
 
@@ -751,6 +763,31 @@ export const useStore = create<State>((set, get) => ({
       return { ok: true };
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : 'Could not rename agent' };
+    }
+  },
+  setAgentCwd: async (id, cwd) => {
+    try {
+      const result = await window.cth.hiveSetAgentCwd(id, cwd);
+      if (!result.ok || !result.cwd) return { ok: false, error: result.error ?? 'Could not change the agent folder' };
+      const nextCwd = result.cwd;
+      const nextProject = workspaceNameFromCwd(nextCwd);
+
+      set((s) => {
+        const changeCwd = (agents: Agent[]): Agent[] =>
+          agents.map((agent) => agent.id === id
+            ? { ...agent, cwd: nextCwd, project: nextProject, cwdValid: true }
+            : agent);
+        const agents = changeCwd(s.agents);
+        const archivedAgents = changeCwd(s.archivedAgents);
+        const restorableAgents = changeCwd(s.restorableAgents);
+        persistAgents(agents, s.selectedId);
+        persistArchived(archivedAgents);
+        persistRestorable(restorableAgents);
+        return { agents, archivedAgents, restorableAgents };
+      });
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'Could not change the agent folder' };
     }
   },
   setAgentNote: (id, note) =>

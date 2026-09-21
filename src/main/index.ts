@@ -3457,6 +3457,31 @@ ipcMain.handle('hive:renameAgent', (_evt, id: unknown, name: unknown) => {
   }
   return hive.renameAgent(id, name);
 });
+ipcMain.handle('hive:setAgentCwd', async (_evt, id: unknown, cwd: unknown) => {
+  if (typeof id !== 'string' || typeof cwd !== 'string') {
+    return { ok: false, error: 'Invalid working-directory request' };
+  }
+
+  const result = hive.setAgentCwd(id, cwd);
+  if (!result.ok || !result.cwd) return result;
+  const nextCwd = result.cwd;
+
+  // registry.json is the agent's durable record; config.json's registeredRepos
+  // powers the Add Agent quick-picks. The reporter's manual workaround needed
+  // both files changed, so replace the stale registered repo here too.
+  try {
+    const cfg = readConfig();
+    const previous = cfg.registeredRepos?.find((repo) => repo === nextCwd || repo === cwd);
+    if (previous) {
+      const nextRepos = (cfg.registeredRepos ?? [])
+        .map((repo) => (repo === previous ? nextCwd : repo));
+      writeConfig({ registeredRepos: nextRepos });
+    }
+  } catch { /* the registry repair is what fixes the agent; config quick-picks are secondary */ }
+
+  try { liveWebContents()?.send('hive:agentCwdChanged', { id, cwd: nextCwd }); } catch { /* window torn down */ }
+  return result;
+});
 ipcMain.handle('hive:setAgentHold', (_evt, id: unknown, hold: unknown) => {
   if (typeof id !== 'string' || typeof hold !== 'boolean') {
     return { ok: false, error: 'Invalid hold request' };

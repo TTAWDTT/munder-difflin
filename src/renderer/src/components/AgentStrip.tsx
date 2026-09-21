@@ -139,6 +139,7 @@ export function AgentStrip({ config }: AgentStripProps) {
             status={a.status}
             ptyId={a.ptyId}
             project={a.project}
+            cwdValid={a.cwdValid}
             action={a.action}
             progress={a.progress}
             contextTokens={a.contextTokens}

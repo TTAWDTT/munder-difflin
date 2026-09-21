@@ -101,7 +101,8 @@ export interface HiveRegistry {
     lastSeen: number;
     archived?: boolean;
     sessionId?: string;
-  }>;
+    cwdValid?: boolean;
+  }>
 }
 
 /** One row of the consolidated voice read-layer directory (`hive:agentDirectory`):
@@ -752,6 +753,10 @@ const api = {
   /** Persist a hire/job role to hive registry.json + identity.md (no respawn). */
   hivePatchAgentRole: (id: string, role: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('hive:patchAgentRole', id, role),
+  /** Point an existing agent at a new, existing project folder without changing
+   *  its id, memory, or session. */
+  hiveSetAgentCwd: (id: string, cwd: string): Promise<{ ok: boolean; cwd?: string; error?: string }> =>
+    ipcRenderer.invoke('hive:setAgentCwd', id, cwd),
   /** Rename an agent's display name. Its id, hive directory, and PTY are unchanged. */
   hiveRenameAgent: (id: string, name: string): Promise<{ ok: boolean; name?: string; error?: string }> =>
     ipcRenderer.invoke('hive:renameAgent', id, name),
@@ -907,6 +912,13 @@ const api = {
   },
   /** A MAIN-initiated agent kill/archive (e.g. a voice kill via rt-5) — the renderer
    *  archives the floor card since it didn't initiate the kill itself. */
+  /** Main confirms a durable cwd repair so the renderer roster updates even if
+   *  the originating window changed during the picker interaction. */
+  onHiveAgentCwdChanged: (cb: (e: { id: string; cwd: string }) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, payload: { id: string; cwd: string }) => cb(payload);
+    ipcRenderer.on('hive:agentCwdChanged', listener);
+    return () => ipcRenderer.removeListener('hive:agentCwdChanged', listener);
+  },
   onHiveAgentArchived: (cb: (e: { id: string }) => void): (() => void) => {
     const listener = (_e: IpcRendererEvent, payload: { id: string }) => cb(payload);
     ipcRenderer.on('hive:agentArchived', listener);

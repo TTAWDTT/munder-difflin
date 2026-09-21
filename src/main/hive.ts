@@ -1058,6 +1058,61 @@ export class HiveManager {
     }
   }
 
+  /**
+   * Point an existing agent at a new project folder. Renaming a folder on disk
+   * is a normal user action; the agent's identity, memory and session all live
+   * in the hive, so changing this durable cwd repairs the agent without
+   * requiring the user to hand-edit registry.json/config.json.
+   */
+  setAgentCwd(id: string, cwd: string): { ok: boolean; cwd?: string; error?: string } {
+    const root = this.root();
+    if (!root) return { ok: false, error: 'hive disabled (no harnessHome)' };
+
+    const nextCwd = expandTilde(cwd.trim());
+    if (!nextCwd) return { ok: false, error: 'Working directory is required' };
+    if (!isAbsolute(nextCwd)) return { ok: false, error: 'Working directory must be an absolute path' };
+
+    try {
+      const validity = this.cwdValidity(nextCwd);
+      if (!validity.valid) return { ok: false, error: 'Working directory must be an existing folder' };
+
+      const reg = this.registry();
+      const agent = reg.agents[id];
+      if (!agent) return { ok: false, error: 'Agent not found' };
+
+      if (agent.cwd === nextCwd) return { ok: true, cwd: nextCwd };
+
+      const previousCwd = agent.cwd;
+      agent.cwd = nextCwd;
+      agent.cwdValid = true;
+      this.atomicWriteJson(join(root, 'registry.json'), reg);
+
+      // fleet.json is a live snapshot, not the durable registry. Keep it in
+      // lockstep so the next roster context / heartbeat sees the repaired path
+      // without waiting for another spawn.
+      const fleetPath = join(root, 'fleet.json');
+      if (existsSync(fleetPath)) {
+        try {
+          const fleet = this.readJson<{ agents?: Array<{ id?: string; cwd?: string; cwdValid?: boolean }> }>(fleetPath, {});
+          if (Array.isArray(fleet.agents)) {
+            const row = fleet.agents.find((candidate) => candidate.id === id);
+            if (row) {
+              row.cwd = nextCwd;
+              row.cwdValid = true;
+              this.writeJson(fleetPath, fleet);
+            }
+          }
+        } catch { /* periodic snapshot will repair a malformed/stale fleet file */ }
+      }
+
+      this.appendLog({ kind: 'cwd-change', agentId: id, previousCwd, cwd: nextCwd });
+      this.commit(`hive: change cwd ${id}`);
+      return { ok: true, cwd: nextCwd };
+    } catch {
+      return { ok: false, error: 'Could not change working directory' };
+    }
+  }
+
   renameAgent(id: string, name: string): { ok: boolean; name?: string; error?: string } {
     const root = this.root();
     if (!root) return { ok: false, error: 'hive disabled (no harnessHome)' };
