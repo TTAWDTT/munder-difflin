@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { parseSplitOrientation, type SplitOrientation } from '@/splitLayout';
 import type { AccentColorName } from '@/design/tokens';
 import type { OfficeCharacterName } from '@/scene/office/cast';
 import type { ThemeId } from '@/scene/office/themeRegistry';
@@ -207,6 +208,12 @@ interface State {
    *  fallback for anything that genuinely has no particular agent in mind. */
   ideAgentId: string | null;
   sidebarWidth: number;
+  /** Which divider the main office/terminal layout uses. Vertical is today's
+   *  side-by-side default; horizontal puts the floor above a full-width terminal. */
+  splitOrientation: SplitOrientation;
+  /** The floor pane's height in the horizontal orientation, remembered separately
+   *  from the sidebar width so neither resize overwrites the other orientation. */
+  sidebarHeight: number;
   sidebarTab: SidebarTab;
   godStatus: GodStatus;
   /** Per-agent outgoing message queue (agent id → messages awaiting delivery).
@@ -335,6 +342,8 @@ interface State {
   setIdeOpen: (open: boolean, agentId?: string | null) => void;
   setIdeInitialFile: (path: string | null) => void;
   setSidebarWidth: (px: number) => void;
+  setSplitOrientation: (orientation: SplitOrientation) => void;
+  setSidebarHeight: (px: number) => void;
   setSidebarTab: (tab: SidebarTab) => void;
   /** Drop persisted agents whose PTY is no longer alive in the main process.
    *  Called once at startup so a renderer reload (e.g. after the laptop sleeps)
@@ -343,6 +352,8 @@ interface State {
 }
 
 const LS_SIDEBAR_WIDTH = 'cth.sidebarWidth';
+const LS_SPLIT_ORIENTATION = 'cth.splitOrientation';
+const LS_SIDEBAR_HEIGHT = 'cth.sidebarHeight';
 const LS_SIDEBAR_TAB = 'cth.sidebarTab';
 const LS_AGENTS = 'cth.agents';
 const LS_ARCHIVED = 'cth.archivedAgents';
@@ -620,6 +631,20 @@ const initialSidebarWidth = (() => {
   } catch { /* noop */ }
   return 420;
 })();
+const initialSplitOrientation = parseSplitOrientation(
+  (() => {
+    try { return window.localStorage.getItem(LS_SPLIT_ORIENTATION); }
+    catch { return null; }
+  })()
+);
+const initialSidebarHeight = (() => {
+  try {
+    const v = window.localStorage.getItem(LS_SIDEBAR_HEIGHT);
+    const n = v ? parseInt(v, 10) : NaN;
+    if (!Number.isNaN(n) && n >= 180 && n <= 800) return n;
+  } catch { /* noop */ }
+  return 510;
+})();
 const initialSidebarTab: SidebarTab = (() => {
   try {
     const v = window.localStorage.getItem(LS_SIDEBAR_TAB);
@@ -688,6 +713,8 @@ export const useStore = create<State>((set, get) => ({
   ideOpen: false,
   ideAgentId: null,
   sidebarWidth: initialSidebarWidth,
+  splitOrientation: initialSplitOrientation,
+  sidebarHeight: initialSidebarHeight,
   sidebarTab: initialSidebarTab,
   godStatus: 'booting',
   messageQueues: initialQueues,
@@ -1028,6 +1055,17 @@ export const useStore = create<State>((set, get) => ({
     const clamped = Math.min(1200, Math.max(320, Math.round(px)));
     try { window.localStorage.setItem(LS_SIDEBAR_WIDTH, String(clamped)); } catch { /* noop */ }
     set({ sidebarWidth: clamped });
+  },
+  setSplitOrientation: (orientation) => {
+    try { window.localStorage.setItem(LS_SPLIT_ORIENTATION, orientation); } catch { /* noop */ }
+    set({ splitOrientation: orientation });
+  },
+  setSidebarHeight: (px) => {
+    // This runs after the splitter has clamped to the current window; these hard
+    // limits also cover a stale localStorage value on startup.
+    const clamped = Math.min(800, Math.max(180, Math.round(px)));
+    try { window.localStorage.setItem(LS_SIDEBAR_HEIGHT, String(clamped)); } catch { /* noop */ }
+    set({ sidebarHeight: clamped });
   },
   setSidebarTab: (tab) => {
     try { window.localStorage.setItem(LS_SIDEBAR_TAB, tab); } catch { /* noop */ }

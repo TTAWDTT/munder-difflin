@@ -55,6 +55,10 @@ export function App() {
   const appThemeNow = useAppTheme();
   const sidebarWidth = useStore(s => s.sidebarWidth);
   const setSidebarWidth = useStore(s => s.setSidebarWidth);
+  const splitOrientation = useStore(s => s.splitOrientation);
+  const setSplitOrientation = useStore(s => s.setSplitOrientation);
+  const sidebarHeight = useStore(s => s.sidebarHeight);
+  const setSidebarHeight = useStore(s => s.setSidebarHeight);
   const ideOpen = useStore(s => s.ideOpen);
   const setIdeOpen = useStore(s => s.setIdeOpen);
 
@@ -79,6 +83,7 @@ export function App() {
   const [quitWarn, setQuitWarn] = useState<{ ptyCount: number } | null>(null);
   const [closing, setClosing] = useState<ClosingTimeState | null>(null);
   const [vpWidth, setVpWidth] = useState<number>(window.innerWidth);
+  const [vpHeight, setVpHeight] = useState<number>(window.innerHeight);
 
   // Deep link into Settings from anywhere in the tree. Settings' open state is
   // local to App, so a nested control (e.g. "set it now" beside a disabled Talk
@@ -247,7 +252,10 @@ export function App() {
 
   // Track viewport width for splitter clamping
   useEffect(() => {
-    const onResize = () => setVpWidth(window.innerWidth);
+    const onResize = () => {
+      setVpWidth(window.innerWidth);
+      setVpHeight(window.innerHeight);
+    };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -310,6 +318,25 @@ export function App() {
         }}>
           {config.autoMode ? 'auto mode on' : 'auto mode off'}
         </span>
+        {/* #311: a landscape floor wants the option of a landscape pane. Default
+            stays side-by-side; the floor above terminal choice has its own size. */}
+        <button
+          className="cth-titlebar-nodrag cth-tip"
+          onClick={() => setSplitOrientation(splitOrientation === 'vertical' ? 'horizontal' : 'vertical')}
+          data-tip={splitOrientation === 'vertical' ? 'Floor above terminal' : 'Side by side'}
+          aria-label={splitOrientation === 'vertical' ? 'Switch to horizontal split' : 'Switch to vertical split'}
+          style={{
+            marginLeft: 'auto',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 28, height: 28, padding: 0,
+            background: 'var(--cth-paper-100)',
+            boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
+            border: 'none', borderRadius: 2, cursor: 'pointer',
+            color: 'var(--cth-ink-900)'
+          }}
+        >
+          <SplitGlyph orientation={splitOrientation} />
+        </button>
         {/* v0.3.4: theme + fullscreen live HERE (top right), not buried in the
             terminal header — and the theme darkens the whole app, terminals
             included (design/theme.ts + tokens.css dark block). */}
@@ -333,7 +360,6 @@ export function App() {
           data-tip={appThemeNow === 'dark' ? 'Light theme' : 'Dark theme'}
           aria-label="Toggle dark mode"
           style={{
-            marginLeft: 'auto',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             width: 28, height: 28, padding: 0,
             background: 'var(--cth-paper-100)',
@@ -395,10 +421,13 @@ export function App() {
       <div style={{
         flex: 1, minHeight: 0,
         display: 'flex',
+        flexDirection: splitOrientation === 'horizontal' ? 'column' : 'row',
         padding: 16,
         gap: 0
       }}>
-        <div style={{ flex: 1, minHeight: 0, minWidth: 0, position: 'relative' }}>
+        <div style={splitOrientation === 'horizontal'
+          ? { height: sidebarHeight, flexShrink: 0, minHeight: 0, position: 'relative' }
+          : { flex: 1, minHeight: 0, minWidth: 0, position: 'relative' }}>
           <OfficeFloor />
           <MemoryPanel />
           {agentCount === 0 && godStatus === 'booting' && <MichaelBooting />}
@@ -427,15 +456,16 @@ export function App() {
         </div>
 
         <SidebarSplitter
-          width={sidebarWidth}
-          onChange={setSidebarWidth}
+          orientation={splitOrientation}
+          paneSize={splitOrientation === 'horizontal' ? sidebarHeight : sidebarWidth}
+          onChange={splitOrientation === 'horizontal' ? setSidebarHeight : setSidebarWidth}
           viewportWidth={vpWidth}
+          viewportHeight={vpHeight}
         />
 
-        <div style={{
-          width: sidebarWidth, flexShrink: 0,
-          minHeight: 0, display: 'flex', flexDirection: 'column'
-        }}>
+        <div style={splitOrientation === 'horizontal'
+          ? { flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column' }
+          : { width: sidebarWidth, flexShrink: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           {agent ? (
             <AgentDetailPanel agent={agent} />
           ) : godStatus === 'booting' ? (
@@ -531,6 +561,17 @@ function Glyph({ children }: { children: React.ReactNode }) {
       strokeLinecap="round" strokeLinejoin="round"
       aria-hidden="true" focusable="false"
     >{children}</svg>
+  );
+}
+
+/** The current split direction: vertical divider side-by-side, horizontal
+ *  divider floor-above-terminal. The box makes the axis unambiguous. */
+function SplitGlyph({ orientation }: { orientation: 'vertical' | 'horizontal' }) {
+  return (
+    <Glyph>
+      <rect x="2" y="2.5" width="12" height="11" />
+      {orientation === 'vertical' ? <line x1="8" y1="2.5" x2="8" y2="13.5" /> : <line x1="2" y1="8" x2="14" y2="8" />}
+    </Glyph>
   );
 }
 
